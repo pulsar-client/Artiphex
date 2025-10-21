@@ -1,0 +1,12 @@
+
+local Test = game.ReplicatedStorage.Resources.FiveSeasonsFX.FinalExplosion.Particles.Main1.Mrk.Attachment
+
+local test = Test:Clone()
+test.Parent = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+
+for _, child in ipairs(test:GetChildren()) do
+    if child:IsA("ParticleEmitter") then
+        child:Emit(115)
+        child.Enabled = true
+    end
+end
