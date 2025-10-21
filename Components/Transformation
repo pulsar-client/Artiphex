@@ -1,25 +1,31 @@
 --================================================================================
 -- CONFIGURATION
+-- This section holds all parameters for the move and AVATAR CUSTOMIZATION.
 --================================================================================
 
--- Animation/VFX/Sound Settings
-local ANIMATION_ID = "rbxassetid://17292505729" -- The main animation (Goku!)
+-- Animation Settings
+local ANIMATION_ID = "rbxassetid://17292505729" -- The main animation ID (The "Goku" transformation)
 local START_TIME = 0.05
 local PLAYBACK_SPEED = 1
-local SOUND_ID = "rbxassetid://9057675920" -- The sound effect to play
-local VFX_PATH = "Emotes.VFX.VfxMods.ShadowEruption.vfx.BallFx" -- Path relative to ReplicatedStorage
-local VFX_EMIT_COUNT = 15
-local VFX_CLEANUP_DELAY = 3.5 -- Seconds before the cloned VFX object is destroyed
 
--- Avatar Changer Settings
+-- Sound Settings
+local SOUND_ID = "rbxassetid://9057675920" -- The sound effect ID
+local SOUND_VOLUME = 3 -- The loudness of the sound effect
+
+-- VFX Settings
+local VFX_PATH = "Emotes.VFX.VfxMods.ShadowEruption.vfx.BallFx" -- Path to the VFX model in ReplicatedStorage
+local VFX_EMIT_COUNT = 30 -- Number of particles to emit
+local VFX_CLEANUP_DELAY = 9 -- How long to wait before destroying the cloned VFX
+
+-- AVATAR CHANGER SETTINGS
 local DeleteAllAccessories = "Yes" -- "Yes" or "No"
-local ForcePantsID = 1102371782          
-local ForceShirtID = 1102370717   -- Classic or UGC shirt ID (numbers only)
+local ForcePantsID = 16483205866          
+local ForceShirtID = 114017304   -- Classic or UGC shirt ID (numbers only)
 
--- Accessories / Faces (IDs only)
+-- Accessories / Faces
 local face = 0
 local hair = 0
-local AnyAccessory1 = 18169009524 -- Example: Your specific accessory ID
+local AnyAccessory1 = 82842618904466 -- Your primary accessory ID
 local AnyAccessory2 = 0
 local AnyAccessory3 = 0
 local AnyAccessory4 = 0
@@ -30,7 +36,7 @@ local AnyAccessory8 = 0
 local AnyAccessory9 = 0
 local AnyAccessory10 = 0
 
--- R6 Mesh Replacements (IDs only)
+-- R6 Mesh Replacements
 local Head = 0
 local RightArm = 0
 local LeftArm = 0
@@ -39,16 +45,20 @@ local RightLeg = 0
 local LeftLeg = 0
 
 --================================================================================
--- SERVICES & INITIAL SETUP
+-- SERVICES & SETUP
 --================================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 if not LocalPlayer then return end
 
+-- Create the Animation instance once for efficiency
+local newAnimation = Instance.new("Animation")
+newAnimation.AnimationId = ANIMATION_ID
+
 --================================================================================
--- HELPER FUNCTIONS (Avatar Changer)
--- These functions are used for applying the custom avatar look.
+-- HELPER FUNCTIONS (Avatar)
+-- (These are required for the avatar persistence to function)
 --================================================================================
 
 local function weldAccessory(acc, char)
@@ -70,7 +80,7 @@ local function weldAccessory(acc, char)
 end
 
 local function loadAccessory(id, char)
-	if id == 0 then return end
+    if id == 0 then return end
 	local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
 	if not success or not objects or #objects == 0 then return end
     
@@ -94,7 +104,7 @@ local function loadAccessory(id, char)
 end
 
 local function loadHeadReplacement(id, char)
-	if id == 0 then return end
+    if id == 0 then return end
 	local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
 	if not success or not objects or #objects == 0 then return end
     
@@ -114,7 +124,7 @@ local function loadHeadReplacement(id, char)
 end
 
 local function replaceMesh(id, limbName, char)
-	if id == 0 then return end
+    if id == 0 then return end
 	local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
 	if not success or not objects or #objects == 0 then return end
     
@@ -138,7 +148,7 @@ local function replaceMesh(id, limbName, char)
 end
 
 local function forceAnyPants(char)
-	if ForcePantsID == 0 then return end
+    if ForcePantsID == 0 then return end
 	local success, obj = pcall(function() return game:GetObjects("rbxassetid://" .. ForcePantsID)[1] end)
 	if not success or not obj then return end
 
@@ -168,7 +178,7 @@ local function forceAnyPants(char)
 end
 
 local function forceAnyShirt(char)
-	if ForceShirtID == 0 then return end
+    if ForceShirtID == 0 then return end
 	local success, obj = pcall(function() return game:GetObjects("rbxassetid://" .. ForceShirtID)[1] end)
 	if not success or not obj then return end
 
@@ -198,14 +208,43 @@ local function forceAnyShirt(char)
 end
 
 --================================================================================
--- CHARACTER SETUP (Runs on initial load and every respawn)
+-- HELPER FUNCTIONS (Move Logic)
+--================================================================================
+
+local function findVFXSource(path)
+    -- Utility to find the VFX model deep inside ReplicatedStorage
+    local parts = string.split(path, ".")
+    local current = ReplicatedStorage
+    for _, partName in ipairs(parts) do
+        current = current:FindFirstChild(partName)
+        if not current then return nil end
+    end
+    return current
+end
+
+local function playAndCleanupSound(rootPart)
+    -- Creates, plays, sets volume, and automatically destroys the sound object
+    local sound = Instance.new("Sound")
+    sound.SoundId = SOUND_ID
+    sound.Volume = SOUND_VOLUME
+    sound.Parent = rootPart
+    
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+
+    sound:Play()
+end
+
+--================================================================================
+-- MAIN LOGIC FUNCTIONS
 --================================================================================
 
 local function setupCharacter(char)
-    -- Wait for critical parts
+    -- AVATAR CUSTOMIZATION LOGIC (Persistent)
+    
 	char:WaitForChild("Humanoid")
     
-    -- AVATAR CUSTOMIZATION LOGIC
 	if DeleteAllAccessories == "Yes" then
 		for _, d in ipairs(char:GetDescendants()) do
 			if d:IsA("Accessory") then d:Destroy() end
@@ -213,7 +252,6 @@ local function setupCharacter(char)
 	end
 
 	if face ~= 0 and char:FindFirstChild("Head") then
-        -- Handle face
 		local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. face) end)
 		if success and objects and #objects > 0 then
 			local f = objects[1]
@@ -248,48 +286,20 @@ local function setupCharacter(char)
 	forceAnyShirt(char)
 end
 
---================================================================================
--- ONE-TIME TRANSFORMATION EXECUTION (Animation/VFX/Sound)
---================================================================================
-
-local function findVFXSource(path)
-    local parts = string.split(path, ".")
-    local current = ReplicatedStorage
-    for _, partName in ipairs(parts) do
-        current = current:FindFirstChild(partName)
-        if not current then return nil end
-    end
-    return current
-end
-
-local function playAndCleanupSound(rootPart)
-    local sound = Instance.new("Sound")
-    sound.SoundId = SOUND_ID
-    sound.Parent = rootPart -- Attach sound to the character for 3D positioning
+--- Executes the dramatic animation, sound, and VFX sequence. (Persistent)
+local function doTransformation()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     
-    sound.Ended:Connect(function()
-        sound:Destroy()
-    end)
-
-    sound:Play()
-end
-
-local function executeTransformation()
-    local char = LocalPlayer.Character
-    if not char then return end
-    
+    -- Safety check: Wait until the character parts are ready
     local humanoid = char:WaitForChild("Humanoid")
     local rootPart = char:WaitForChild("HumanoidRootPart")
 
-    -- 1. Stop all current animations and play the new one
+    -- 1. Animation Playback
     for _, animTrack in pairs(humanoid:GetPlayingAnimationTracks()) do
         animTrack:Stop()
     end
 
-    local newAnimation = Instance.new("Animation")
-    newAnimation.AnimationId = ANIMATION_ID
     local animTrack = humanoid:LoadAnimation(newAnimation)
-
     animTrack:Play()
     animTrack:AdjustSpeed(0)
     animTrack.TimePosition = START_TIME
@@ -304,7 +314,7 @@ local function executeTransformation()
     if vfxSource then
         local clonedVFX = vfxSource:Clone()
         clonedVFX.Parent = rootPart
-        clonedVFX.CFrame = rootPart.CFrame -- Position it at the character's center
+        clonedVFX.CFrame = rootPart.CFrame
         
         for _, child in ipairs(clonedVFX:GetDescendants()) do
             if child:IsA("ParticleEmitter") then
@@ -324,18 +334,19 @@ local function executeTransformation()
 end
 
 --================================================================================
--- CONNECTION AND INITIAL EXECUTION
+-- CONNECTION AND PERSISTENCE (Handles Respawn)
 --================================================================================
 
--- 1. Setup Avatar on every respawn (Persistence)
-LocalPlayer.CharacterAdded:Connect(function(char)
-	setupCharacter(char)
-end)
-
--- 2. Setup Avatar immediately if character is already present
-if LocalPlayer.Character then
-	setupCharacter(LocalPlayer.Character)
+-- Function to handle both avatar setup and transformation sequence on spawn
+local function onCharacterSpawned(char)
+    setupCharacter(char) -- Apply avatar changes
+    doTransformation()   -- Execute the dramatic move
 end
 
--- 3. Execute the powerful transformation sequence ONLY ONCE when the script is run.
-executeTransformation()
+-- 1. Setup on every respawn (for persistence)
+LocalPlayer.CharacterAdded:Connect(onCharacterSpawned)
+
+-- 2. Initial execution if character is already present
+if LocalPlayer.Character then
+    onCharacterSpawned(LocalPlayer.Character)
+end
