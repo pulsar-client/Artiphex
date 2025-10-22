@@ -18,10 +18,10 @@ local VFX_EMIT_COUNT = 30 -- Number of particles for the burst
 local VFX_CLEANUP_DELAY = 9 -- How long to wait before destroying the cloned VFX
 
 -- Aura VFX Settings (The persistent effect)
-local AURA_VFX_PATH = "Resources.FiveSeasonsFX.FinalExplosion.Particles.Main1.Mrk.Attachment" -- Path to the persistent aura VFX
-local AURA_EMIT_BURST = 115 -- Initial burst of particles when the aura is applied
+local AURA_VFX_PATH = "Resources.FiveSeasonsFX.CharFX.TP" -- CORRECTED Path to the persistent aura VFX
+local AURA_EMIT_BURST = 15 -- CORRECTED Initial burst of particles when the aura is applied
 
--- AVATAR CHANGER SETTINGS (UPDATED with the IDs you provided)
+-- AVATAR CHANGER SETTINGS (Updated to your specified IDs)
 local DeleteAllAccessories = "Yes" -- "Yes" or "No"
 local ForcePantsID = 16483205866          
 local ForceShirtID = 114017304   -- Classic or UGC shirt ID (numbers only)
@@ -91,7 +91,6 @@ end
 
 --================================================================================
 -- HELPER FUNCTIONS (Avatar)
--- (These are required for the avatar persistence to function)
 --================================================================================
 
 local function weldAccessory(acc, char)
@@ -303,7 +302,86 @@ local function applyAura(char)
         -- but we need to ensure the emitters are running.
         for _, child in ipairs(clonedAura:GetDescendants()) do
             if child:IsA("ParticleEmitter") then
-                child:Emit(AURA_EMIT_BURST) -- Initial powerful burst
+                child:Emit(AURA_EMIT_BURST) -- Initial powerful burst (15 particles)
+                child.Enabled = true -- Keep the emitter running for a continuous aura
+            end
+        end
+
+        -- Note: The aura will be automatically cleaned up when the HumanoidRootPart is destroyed (on death).
+    else
+        warn("Aura VFX source not found at: ReplicatedStorage." .. AURA_VFX_PATH)
+    end
+end
+
+--- Executes the dramatic animation, sound, and explosion VFX sequence.
+local function doTransformation()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    
+    local humanoid = char:WaitForChild("Humanoid")
+    local rootPart = char:WaitForChild("HumanoidRootPart")
+
+    -- 1. Animation Playback
+    for _, animTrack in pairs(humanoid:GetPlayingAnimationTracks()) do
+        animTrack:Stop()
+    end
+
+    local animTrack = humanoid:LoadAnimation(newAnimation)
+    animTrack:Play()
+    animTrack:AdjustSpeed(0)
+    animTrack.TimePosition = START_TIME
+    animTrack:AdjustSpeed(PLAYBACK_SPEED)
+
+    -- 2. Play Sound
+    playAndCleanupSound(rootPart)
+
+    -- 3. Emit Explosion VFX
+    local vfxSource = findVFXSource(VFX_PATH)
+
+    if vfxSource then
+        local clonedVFX = vfxSource:Clone()
+        clonedVFX.Parent = rootPart
+        clonedVFX.CFrame = rootPart.CFrame
+        
+        for _, child in ipairs(clonedVFX:GetDescendants()) do
+            if child:IsA("ParticleEmitter") then
+                child:Emit(VFX_EMIT_COUNT) 
+                child.Enabled = true
+            end
+        end
+
+        task.delay(VFX_CLEANUP_DELAY, function()
+            if clonedVFX and clonedVFX.Parent then
+                clonedVFX:Destroy()
+            end
+        end)
+    else
+        warn("Explosion VFX source not found at: ReplicatedStorage." .. VFX_PATH)
+    end
+end
+
+--================================================================================
+-- CONNECTION AND PERSISTENCE (Handles Respawn)
+--================================================================================
+
+-- Function to handle all persistent effects on spawn
+local function onCharacterSpawned(char)
+    -- Apply the custom avatar look
+    setupCharacter(char) 
+    
+    -- Apply the persistent aura
+    applyAura(char)
+    
+    -- Execute the one-time transformation move (Animation, SFX, Explosion VFX)
+    doTransformation()   
+end
+
+-- 1. Setup on every respawn (for persistence)
+LocalPlayer.CharacterAdded:Connect(onCharacterSpawned)
+
+-- 2. Initial execution if character is already present
+if LocalPlayer.Character then
+    onCharacterSpawned(LocalPlayer.Character)
+endild:Emit(AURA_EMIT_BURST) -- Initial powerful burst
                 child.Enabled = true -- Keep the emitter running for a continuous aura
             end
         end
