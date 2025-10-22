@@ -1,0 +1,81 @@
+-- This script overrides a specific animation (ANIMATION_TO_OVERRIDE_ID)
+-- and immediately plays a fast "down slam" animation instead.
+-- It is designed to PERSIST (continue working) after the player respawns.
+
+local ANIMATION_TO_OVERRIDE_ID = 10470104242 -- The animation ID that triggers the override
+local NEW_ANIMATION_ID = 12447247483        -- The down slam animation ID to play
+local NEW_ANIMATION_PLAYBACK_SPEED = 6.0   -- How fast the new animation should play
+
+-- --- Setup ---
+
+local player = game.Players.LocalPlayer
+local currentConnection = nil -- Stores the connection to the AnimationPlayed event
+
+-- --- Functions ---
+
+local function onAnimationPlayed(animationTrack)
+    -- Check if the played animation is the one we want to override
+    if animationTrack.Animation and animationTrack.Animation.AnimationId == "rbxassetid://" .. ANIMATION_TO_OVERRIDE_ID then
+
+        local currentCharacter = player.Character
+        local currentHumanoid = currentCharacter and currentCharacter:FindFirstChildOfClass("Humanoid")
+        
+        if not currentHumanoid then return end
+
+        -- Get the Animator, which is the modern way to handle animations
+        local animator = currentHumanoid:FindFirstChildOfClass("Animator")
+        if not animator then return end
+
+        -- 1. Stop all current playing animations immediately
+        for _, animTrack in currentHumanoid:GetPlayingAnimationTracks() do
+            animTrack:Stop()
+        end
+
+        -- 2. Load the new animation asset
+        local animAsset = Instance.new("Animation")
+        animAsset.AnimationId = "rbxassetid://" .. NEW_ANIMATION_ID
+        
+        -- Load the animation using the Animator
+        local anim = animator:LoadAnimation(animAsset)
+
+        local startTime = 0
+        
+        -- Use the reliable task.wait for delay
+        task.wait(0.2) 
+
+        -- 3. Play the new animation with custom speed/time
+        anim:Play()
+        
+        -- Set TimePosition before adjusting speed for the desired effect
+        anim:AdjustSpeed(0)
+        anim.TimePosition = startTime
+        
+        -- Set final speed for the slam
+        anim:AdjustSpeed(NEW_ANIMATION_PLAYBACK_SPEED)
+    end
+end
+
+-- Function to set up the connection whenever a new character loads
+local function setupCharacter(char)
+    local newHumanoid = char:WaitForChild("Humanoid")
+    
+    -- Disconnect the old connection if it exists to prevent memory leaks,
+    -- though the garbage collector handles most of this when the character is destroyed.
+    if currentConnection then
+        currentConnection:Disconnect()
+    end
+    
+    -- Connect the override function to the new humanoid's AnimationPlayed event
+    currentConnection = newHumanoid.AnimationPlayed:Connect(onAnimationPlayed)
+    print("Animation override connected to new Humanoid.")
+end
+
+-- --- Persistent Connection Setup ---
+
+-- 1. Connect the setup function to CharacterAdded, so it runs every time the player respawns
+player.CharacterAdded:Connect(setupCharacter)
+
+-- 2. Initial setup in case the character already exists when the script starts
+if player.Character then
+    setupCharacter(player.Character)
+end
