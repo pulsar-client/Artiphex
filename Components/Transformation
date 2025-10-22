@@ -12,12 +12,16 @@ local PLAYBACK_SPEED = 1
 local SOUND_ID = "rbxassetid://9057675920" -- The sound effect ID
 local SOUND_VOLUME = 3 -- The loudness of the sound effect
 
--- VFX Settings
-local VFX_PATH = "Emotes.VFX.VfxMods.ShadowEruption.vfx.BallFx" -- Path to the VFX model in ReplicatedStorage
-local VFX_EMIT_COUNT = 30 -- Number of particles to emit
+-- One-Time VFX Settings (The transformation explosion)
+local VFX_PATH = "Emotes.VFX.VfxMods.ShadowEruption.vfx.BallFx" -- Path to the explosion VFX model
+local VFX_EMIT_COUNT = 30 -- Number of particles for the burst
 local VFX_CLEANUP_DELAY = 9 -- How long to wait before destroying the cloned VFX
 
--- AVATAR CHANGER SETTINGS
+-- Aura VFX Settings (The persistent effect)
+local AURA_VFX_PATH = "Resources.FiveSeasonsFX.FinalExplosion.Particles.Main1.Mrk.Attachment" -- Path to the persistent aura VFX
+local AURA_EMIT_BURST = 115 -- Initial burst of particles when the aura is applied
+
+-- AVATAR CHANGER SETTINGS (UPDATED with the IDs you provided)
 local DeleteAllAccessories = "Yes" -- "Yes" or "No"
 local ForcePantsID = 16483205866          
 local ForceShirtID = 114017304   -- Classic or UGC shirt ID (numbers only)
@@ -57,6 +61,35 @@ local newAnimation = Instance.new("Animation")
 newAnimation.AnimationId = ANIMATION_ID
 
 --================================================================================
+-- HELPER FUNCTIONS (VFX & Sound)
+--================================================================================
+
+local function findVFXSource(path)
+    -- Utility to find the VFX model deep inside ReplicatedStorage
+    local parts = string.split(path, ".")
+    local current = ReplicatedStorage
+    for _, partName in ipairs(parts) do
+        current = current:FindFirstChild(partName)
+        if not current then return nil end
+    end
+    return current
+end
+
+local function playAndCleanupSound(rootPart)
+    -- Creates, plays, sets volume, and automatically destroys the sound object
+    local sound = Instance.new("Sound")
+    sound.SoundId = SOUND_ID
+    sound.Volume = SOUND_VOLUME
+    sound.Parent = rootPart
+    
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+
+    sound:Play()
+end
+
+--================================================================================
 -- HELPER FUNCTIONS (Avatar)
 -- (These are required for the avatar persistence to function)
 --================================================================================
@@ -68,6 +101,288 @@ local function weldAccessory(acc, char)
 			if f:IsA("Attachment") and c:FindFirstChild(f.Name) and c[f.Name]:IsA("Attachment") then
 				local w = Instance.new("Weld")
 				w.Name = "AccessoryWeld"
+				w.Part0 = acc.Handle
+				w.Part1 = c
+				w.C0 = f.CFrame
+				w.C1 = c[f.Name].CFrame
+				w.Parent = acc.Handle
+				return
+			end
+		end
+	end
+end
+
+local function loadAccessory(id, char)
+    if id == 0 then return end
+	local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
+	if not success or not objects or #objects == 0 then return end
+    
+    local obj = objects[1]
+	if not obj then return end
+
+	if obj:IsA("Model") and not obj:IsA("Accessory") then
+		for _, v in ipairs(obj:GetDescendants()) do
+			if v:IsA("Accessory") then
+				v.Parent = char
+				weldAccessory(v, char)
+			end
+		end
+		obj:Destroy()
+	elseif obj:IsA("Accessory") then
+		obj.Parent = char
+		weldAccessory(obj, char)
+	else
+		obj:Destroy()
+	end
+end
+
+local function loadHeadReplacement(id, char)
+    if id == 0 then return end
+	local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
+	if not success or not objects or #objects == 0 then return end
+    
+    local m = objects[1]
+	if m then
+		local acc = m:IsA("Accessory") and m or m:FindFirstChildWhichIsA("Accessory", true)
+		if acc and acc:FindFirstChild("Handle") and char:FindFirstChild("Head") then
+			char.Head.Transparency = 1
+			if char.Head:FindFirstChild("face") then
+				char.Head.face.Transparency = 1
+			end
+			acc.Parent = char
+			weldAccessory(acc, char)
+		end
+		m:Destroy()
+	end
+end
+
+local function replaceMesh(id, limbName, char)
+    if id == 0 then return end
+	local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
+	if not success or not objects or #objects == 0 then return end
+    
+    local m = objects[1]
+	if not m then return end
+    
+	local acc = m:IsA("Accessory") and m or m:FindFirstChildWhichIsA("Accessory", true)
+	if acc and acc:FindFirstChild("Handle") then
+		local mesh = acc.Handle:FindFirstChildOfClass("SpecialMesh")
+		if mesh and char:FindFirstChild(limbName) then
+			local limb = char[limbName]
+			local old = limb:FindFirstChildOfClass("SpecialMesh")
+			if old then old:Destroy() end
+			local me = Instance.new("SpecialMesh")
+			me.MeshId = mesh.MeshId
+			me.TextureId = mesh.TextureId
+			me.Parent = limb
+		end
+	end
+	m:Destroy()
+end
+
+local function forceAnyPants(char)
+    if ForcePantsID == 0 then return end
+	local success, obj = pcall(function() return game:GetObjects("rbxassetid://" .. ForcePantsID)[1] end)
+	if not success or not obj then return end
+
+	local classicPants
+	if obj:IsA("Pants") then classicPants = obj
+	elseif obj:IsA("Model") then classicPants = obj:FindFirstChildWhichIsA("Pants", true) end
+
+	if classicPants then
+		local old = char:FindFirstChildOfClass("Pants")
+		if old then old:Destroy() end
+		local p = Instance.new("Pants")
+		p.Name = "ForcedPants"
+		p.PantsTemplate = classicPants.PantsTemplate
+		p.Parent = char
+		obj:Destroy()
+		return
+	end
+
+	local ugcAccessory
+	if obj:IsA("Accessory") then ugcAccessory = obj
+	elseif obj:IsA("Model") then ugcAccessory = obj:FindFirstChildWhichIsA("Accessory", true) end
+
+	if ugcAccessory then
+		ugcAccessory.Parent = char
+		weldAccessory(ugcAccessory, char)
+	end
+end
+
+local function forceAnyShirt(char)
+    if ForceShirtID == 0 then return end
+	local success, obj = pcall(function() return game:GetObjects("rbxassetid://" .. ForceShirtID)[1] end)
+	if not success or not obj then return end
+
+	local classicShirt
+	if obj:IsA("Shirt") then classicShirt = obj
+	elseif obj:IsA("Model") then classicShirt = obj:FindFirstChildWhichIsA("Shirt", true) end
+
+	if classicShirt then
+		local old = char:FindFirstChildOfClass("Shirt")
+		if old then old:Destroy() end
+		local s = Instance.new("Shirt")
+		s.Name = "ForcedShirt"
+		s.ShirtTemplate = classicShirt.ShirtTemplate
+		s.Parent = char
+		obj:Destroy()
+		return
+	end
+
+	local ugcAccessory
+	if obj:IsA("Accessory") then ugcAccessory = obj
+	elseif obj:IsA("Model") then ugcAccessory = obj:FindFirstChildWhichIsA("Accessory", true) end
+
+	if ugcAccessory then
+		ugcAccessory.Parent = char
+		weldAccessory(ugcAccessory, char)
+	end
+end
+
+--================================================================================
+-- MAIN LOGIC FUNCTIONS
+--================================================================================
+
+local function setupCharacter(char)
+    -- AVATAR CUSTOMIZATION LOGIC (Persistent)
+    
+	char:WaitForChild("Humanoid")
+    
+	if DeleteAllAccessories == "Yes" then
+		for _, d in ipairs(char:GetDescendants()) do
+			if d:IsA("Accessory") then d:Destroy() end
+		end
+	end
+
+	if face ~= 0 and char:FindFirstChild("Head") then
+		local success, objects = pcall(function() return game:GetObjects("rbxassetid://" .. face) end)
+		if success and objects and #objects > 0 then
+			local f = objects[1]
+			if f and f:FindFirstChild("face") and char.Head:FindFirstChild("face") then
+				char.Head.face.Texture = f.face.Texture
+			end
+			if f then f:Destroy() end
+		end
+	end
+
+	loadAccessory(hair, char)
+	loadAccessory(AnyAccessory1, char)
+	loadAccessory(AnyAccessory2, char)
+	loadAccessory(AnyAccessory3, char)
+	loadAccessory(AnyAccessory4, char)
+	loadAccessory(AnyAccessory5, char)
+	loadAccessory(AnyAccessory6, char)
+	loadAccessory(AnyAccessory7, char)
+	loadAccessory(AnyAccessory8, char)
+	loadAccessory(AnyAccessory9, char)
+	loadAccessory(AnyAccessory10, char)
+
+	loadHeadReplacement(Head, char)
+
+	replaceMesh(RightArm, "Right Arm", char)
+	replaceMesh(LeftArm, "Left Arm", char)
+	replaceMesh(Torso, "Torso", char)
+	replaceMesh(RightLeg, "Right Leg", char)
+	replaceMesh(LeftLeg, "Left Leg", char)
+
+	forceAnyPants(char)
+	forceAnyShirt(char)
+end
+
+--- Applies the continuous particle aura to the HumanoidRootPart.
+local function applyAura(char)
+    local rootPart = char:WaitForChild("HumanoidRootPart")
+    local auraSource = findVFXSource(AURA_VFX_PATH)
+
+    if auraSource then
+        local clonedAura = auraSource:Clone()
+        clonedAura.Parent = rootPart
+        
+        -- The source is an attachment, so we don't need to set CFrame, 
+        -- but we need to ensure the emitters are running.
+        for _, child in ipairs(clonedAura:GetDescendants()) do
+            if child:IsA("ParticleEmitter") then
+                child:Emit(AURA_EMIT_BURST) -- Initial powerful burst
+                child.Enabled = true -- Keep the emitter running for a continuous aura
+            end
+        end
+
+        -- Note: The aura will be automatically cleaned up when the HumanoidRootPart is destroyed (on death).
+    else
+        warn("Aura VFX source not found at: ReplicatedStorage." .. AURA_VFX_PATH)
+    end
+end
+
+--- Executes the dramatic animation, sound, and explosion VFX sequence.
+local function doTransformation()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    
+    local humanoid = char:WaitForChild("Humanoid")
+    local rootPart = char:WaitForChild("HumanoidRootPart")
+
+    -- 1. Animation Playback
+    for _, animTrack in pairs(humanoid:GetPlayingAnimationTracks()) do
+        animTrack:Stop()
+    end
+
+    local animTrack = humanoid:LoadAnimation(newAnimation)
+    animTrack:Play()
+    animTrack:AdjustSpeed(0)
+    animTrack.TimePosition = START_TIME
+    animTrack:AdjustSpeed(PLAYBACK_SPEED)
+
+    -- 2. Play Sound
+    playAndCleanupSound(rootPart)
+
+    -- 3. Emit Explosion VFX
+    local vfxSource = findVFXSource(VFX_PATH)
+
+    if vfxSource then
+        local clonedVFX = vfxSource:Clone()
+        clonedVFX.Parent = rootPart
+        clonedVFX.CFrame = rootPart.CFrame
+        
+        for _, child in ipairs(clonedVFX:GetDescendants()) do
+            if child:IsA("ParticleEmitter") then
+                child:Emit(VFX_EMIT_COUNT) 
+                child.Enabled = true
+            end
+        end
+
+        task.delay(VFX_CLEANUP_DELAY, function()
+            if clonedVFX and clonedVFX.Parent then
+                clonedVFX:Destroy()
+            end
+        end)
+    else
+        warn("Explosion VFX source not found at: ReplicatedStorage." .. VFX_PATH)
+    end
+end
+
+--================================================================================
+-- CONNECTION AND PERSISTENCE (Handles Respawn)
+--================================================================================
+
+-- Function to handle all persistent effects on spawn
+local function onCharacterSpawned(char)
+    -- Apply the custom avatar look
+    setupCharacter(char) 
+    
+    -- Apply the persistent aura
+    applyAura(char)
+    
+    -- Execute the one-time transformation move (Animation, SFX, Explosion VFX)
+    doTransformation()   
+end
+
+-- 1. Setup on every respawn (for persistence)
+LocalPlayer.CharacterAdded:Connect(onCharacterSpawned)
+
+-- 2. Initial execution if character is already present
+if LocalPlayer.Character then
+    onCharacterSpawned(LocalPlayer.Character)
+end				w.Name = "AccessoryWeld"
 				w.Part0 = acc.Handle
 				w.Part1 = c
 				w.C0 = f.CFrame
