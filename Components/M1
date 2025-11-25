@@ -1,0 +1,140 @@
+-- Delta Compatible & Persistent Animation Replacer
+-- Handles animation overrides, queuing, and BodyVelocity cleaning.
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- --- Configuration ---
+
+local animationIdsToStop = {
+    [17859015788] = true, -- downslam finisher
+    [10469493270] = true, -- punch1
+    [10469630950] = true, -- punch2
+    [10469639222] = true, -- punch3
+    [10469643643] = true, -- punch4
+}
+
+local replacementAnimations = {
+    ["10469493270"] = "rbxassetid://17889458563", -- punch1
+    ["10469630950"] = "rbxassetid://17889461810", -- punch2
+    ["10469639222"] = "rbxassetid://17889471098", -- punch3
+    ["10469643643"] = "rbxassetid://17889290569", -- punch4
+    ["17859015788"] = "rbxassetid://12684185971", -- downslam finisher
+    ["11365563255"] = "rbxassetid://14516273501"  -- punch idk
+}
+
+-- --- Main Character Setup ---
+
+local function setupCharacter(character)
+    -- 1. Essential References
+    local humanoid = character:WaitForChild("Humanoid")
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    -- Use Animator for modern/exploit compatibility
+    local animator = humanoid:WaitForChild("Animator") 
+
+    -- 2. State Variables (Reset per life)
+    local queue = {}
+    local isAnimating = false
+
+    -- 3. Helper Functions
+
+    local function playReplacementAnimation(animationId)
+        if isAnimating then
+            table.insert(queue, animationId)
+            return
+        end
+
+        isAnimating = true
+        local replacementId = replacementAnimations[tostring(animationId)]
+
+        if replacementId then
+            local animAsset = Instance.new("Animation")
+            animAsset.AnimationId = replacementId
+            
+            -- Load via Animator (Standard for Delta/Modern Roblox)
+            local track = animator:LoadAnimation(animAsset)
+            track:Play()
+
+            track.Stopped:Connect(function()
+                isAnimating = false
+                if #queue > 0 then
+                    local nextAnimationId = table.remove(queue, 1)
+                    playReplacementAnimation(nextAnimationId)
+                end
+            end)
+        else
+            isAnimating = false
+        end
+    end
+
+    local function stopSpecificAnimations()
+        -- GetPlayingAnimationTracks() works on Humanoid or Animator
+        for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+            local animIdMatch = track.Animation.AnimationId:match("%d+")
+            local currentId = tonumber(animIdMatch)
+
+            if currentId and animationIdsToStop[currentId] then
+                track:Stop()
+            end
+        end
+    end
+
+    local function onAnimationPlayed(animationTrack)
+        if not animationTrack.Animation then return end
+
+        local animIdMatch = animationTrack.Animation.AnimationId:match("%d+")
+        local animationId = tonumber(animIdMatch)
+
+        if animationId and animationIdsToStop[animationId] then
+            stopSpecificAnimations()
+            animationTrack:Stop()
+
+            local replacementId = replacementAnimations[tostring(animationId)]
+            if replacementId then
+                playReplacementAnimation(animationId)
+            end
+        end
+    end
+
+    local function onBodyVelocityAdded(descendant)
+        if descendant:IsA("BodyVelocity") then
+            -- Remove vertical velocity (Y axis)
+            descendant.Velocity = Vector3.new(descendant.Velocity.X, 0, descendant.Velocity.Z)
+        end
+    end
+
+    -- 4. Connections
+
+    -- Animation Listener
+    local animConnection = humanoid.AnimationPlayed:Connect(onAnimationPlayed)
+
+    -- BodyVelocity Listener (Anti-Fling/Knockup)
+    local descConnection = character.DescendantAdded:Connect(onBodyVelocityAdded)
+
+    -- Scan existing descendants for BodyVelocity
+    for _, descendant in pairs(character:GetDescendants()) do
+        onBodyVelocityAdded(descendant)
+    end
+
+    -- Cleanup connection on death isn't strictly necessary as signals die with the instance,
+    -- but it's good practice.
+    humanoid.Died:Connect(function()
+        if animConnection then animConnection:Disconnect() end
+        if descConnection then descConnection:Disconnect() end
+    end)
+    
+    print("Character setup complete for:", character.Name)
+end
+
+-- --- Persistent Initialization ---
+
+-- Connect to existing character if script is run late
+if player.Character then
+    task.spawn(function() 
+        setupCharacter(player.Character) 
+    end)
+end
+
+-- Connect to all future respawns
+player.CharacterAdded:Connect(setupCharacter)
