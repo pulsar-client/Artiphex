@@ -1,1 +1,146 @@
 
+-- Standalone Idle Animation Script (Extracted from MULTIPHEX)
+-- Optimized for Delta Executor
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+-- The Animation ID that triggers this custom idle sequence
+-- (In the original script, this was checking for 14516273501)
+local TRIGGER_IDLE_ID = "14516273501"
+
+-- --- Visual Effects Functions ---
+
+local function AfterImg(char)
+    if not char then return end
+    
+    local BodyParts = {"Left Arm", "Right Arm", "Left Leg", "Right Leg", "Head", "Torso", "HumanoidRootPart"}
+    local Col = Color3.new(0,0,0) -- Black color from original
+
+    for _, v in pairs(char:GetChildren()) do
+        if table.find(BodyParts, v.Name) and v:IsA("BasePart") then
+            local part = Instance.new("Part")
+            -- Tagging for potential camera ignore lists
+            game:GetService("CollectionService"):AddTag(part, "IgnoreCamera")
+            
+            part.Anchored = true
+            part.CanCollide = false
+            part.Massless = true
+            part.CFrame = v.CFrame
+            part.Size = v.Size * 1.3
+            part.Transparency = 0.8
+            part.Color = Col
+            part.Material = Enum.Material.Neon
+            
+            -- Fade out effect
+            TweenService:Create(part, TweenInfo.new(0.3), {Transparency = 1}):Play()
+            
+            if v.Name == "Head" then
+                local mesh = Instance.new("SpecialMesh")
+                mesh.MeshType = Enum.MeshType.Head
+                mesh.Scale = Vector3.new(1.25, 1.25, 1.25)
+                mesh.Parent = part
+            end
+            
+            part.Parent = workspace
+            Debris:AddItem(part, 0.3) -- Cleanup
+        end
+    end
+end
+
+-- --- Main Logic ---
+
+local function setupCharacter(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    local animator = humanoid:WaitForChild("Animator")
+    
+    -- 1. Preload Animations
+    -- k (Main Idle?)
+    local anim1 = Instance.new("Animation")
+    anim1.AnimationId = "rbxassetid://18897648446"
+    local track1 = animator:LoadAnimation(anim1)
+    
+    -- k2 (Secondary Idle Layer)
+    local anim2 = Instance.new("Animation")
+    anim2.AnimationId = "rbxassetid://18435303746"
+    local track2 = animator:LoadAnimation(anim2)
+    
+    -- floatplay (Floating Motion)
+    local anim3 = Instance.new("Animation")
+    anim3.AnimationId = "rbxassetid://18447913645"
+    local floatTrack = animator:LoadAnimation(anim3)
+
+    local UltraSonicLoop = false
+
+    -- 2. Animation Event Listener
+    local connection
+    connection = humanoid.AnimationPlayed:Connect(function(playedTrack)
+        -- Check if the played animation matches the trigger ID
+        if playedTrack.Animation.AnimationId == "rbxassetid://" .. TRIGGER_IDLE_ID then
+            UltraSonicLoop = true
+            
+            -- Play and freeze animations to manually control TimePosition
+            track1:Play(0.3)
+            track1.Priority = Enum.AnimationPriority.Movement
+            track1:AdjustSpeed(0)
+            
+            floatTrack:Play()
+            floatTrack:AdjustSpeed(0)
+            floatTrack.Priority = Enum.AnimationPriority.Idle
+            
+            track2:Play()
+            track2:AdjustSpeed(0)
+            track2.Priority = Enum.AnimationPriority.Idle
+            
+            -- Sine wave loop for floating effect
+            task.spawn(function()
+                local e = 0
+                local i = 0
+                while UltraSonicLoop and character.Parent do
+                    i = i + 1
+                    e = e + 0.5
+                    
+                    -- Manipulate TimePosition using sine waves
+                    track1.TimePosition = 0.2 + math.sin(i/15)/45
+                    floatTrack.TimePosition = 1 + math.sin(i/45)/45
+                    track2.TimePosition = 4 + math.sin(i/25)/5
+                    
+                    -- Spawn AfterImage periodically
+                    if e >= 1 then
+                        AfterImg(character)
+                        e = 0
+                    end
+                    
+                    task.wait(0.01)
+                end
+            end)
+
+            -- Wait until the trigger animation stops
+            playedTrack.Stopped:Wait()
+            
+            -- Cleanup
+            track1:Stop(0.2)
+            floatTrack:Stop()
+            track2:Stop(0.2)
+            UltraSonicLoop = false
+        end
+    end)
+    
+    -- Cleanup connection on death
+    humanoid.Died:Connect(function()
+        if connection then connection:Disconnect() end
+        UltraSonicLoop = false
+    end)
+end
+
+-- --- Persistence Setup ---
+
+if player.Character then
+    task.spawn(function() setupCharacter(player.Character) end)
+end
+
+player.CharacterAdded:Connect(setupCharacter)
