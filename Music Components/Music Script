@@ -53,3 +53,6 @@ _G.SetCustomMusic = function(vol, tpos)
         s:Play()
     end
 end
+
+task.wait(4)
+notif:SendNotification("Info", 'Loaded Music Function', 4)
