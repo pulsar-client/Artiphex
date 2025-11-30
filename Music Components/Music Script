@@ -1,1 +1,55 @@
+-- Silent Custom Music Loader
+-- Optimized for Delta Executor
+-- No GUI, Loops Forever
 
+-- --- Configuration ---
+local FILE_NAME = "Music.ogx" 
+local RAW_URL = "https://github.com/pulsar-client/Skidex/raw/main/Music%20Components/Music.ogx"
+
+-- --- File Check & Download Logic ---
+local function GetAudio(filename, downloadUrl)
+    local result
+    local success, response = pcall(function()
+        result = readfile(filename)
+    end)
+
+    if success then
+        print("[MusicLoader] File found in cache: " .. filename)
+    else
+        print("[MusicLoader] Downloading " .. filename .. "...")
+        local fileContent = game:HttpGet(downloadUrl)
+        writefile(filename, fileContent)
+        print("[MusicLoader] Download complete.")
+    end
+end
+
+-- --- Execution ---
+
+-- 1. Ensure the file exists
+GetAudio(FILE_NAME, RAW_URL)
+
+-- 2. Cleanup old sounds to prevent duplicates
+local container = game.CoreGui.HeadsetDisconnectedDialog
+for _, part in ipairs(container:GetDescendants()) do
+    if part:IsA('Sound') and part.Name == "CustomBGM" then
+        part:Destroy() 
+    end 
+end
+
+-- 3. Create and Play the Sound
+local s = Instance.new('Sound')
+s.SoundId = getcustomasset(FILE_NAME) 
+s.Parent = container
+s.Volume = 2      -- Adjust volume here
+s.Looped = true   -- ENSURES IT LOOPS
+s.Name = "CustomBGM"
+s:Play()
+
+-- 4. Global Control (Optional)
+_G.SetCustomMusic = function(vol, tpos)
+    if s.Parent then
+        if vol then s.Volume = vol end
+        if tpos then s.TimePosition = tpos end
+        s:Play()
+    end
+end
