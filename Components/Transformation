@@ -382,3 +382,6 @@ LocalPlayer.CharacterAdded:Connect(onCharacterSpawned)
 if LocalPlayer.Character then
     onCharacterSpawned(LocalPlayer.Character)
 end
+
+task.wait(4)
+notif:SendNotification("Warning", 'Loaded Transformation Function', 4)
