@@ -144,3 +144,6 @@ if player.Character then
 end
 
 player.CharacterAdded:Connect(setupCharacter)
+
+task.wait(4)
+notif:SendNotification("Warning", 'Loaded Idle Function', 4)
