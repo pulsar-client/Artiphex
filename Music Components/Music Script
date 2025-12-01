@@ -54,4 +54,4 @@ _G.SetCustomMusic = function(vol, tpos)
     end
 end
 
-notif:SendNotification("Info", 'Loaded Music Function', 4)
+print("Loaded music.")
