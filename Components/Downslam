@@ -80,5 +80,4 @@ if player.Character then
     setupCharacter(player.Character)
 end
 
-task.wait(4)
-notif:SendNotification("Warning", 'Loaded Downslam Function', 4)
+print("Loaded downslam.")   
