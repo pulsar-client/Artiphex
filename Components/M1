@@ -139,5 +139,4 @@ end
 -- Connect to all future respawns
 player.CharacterAdded:Connect(setupCharacter)
 
-task.wait(4)
-notif:SendNotification("Warning", 'Loaded M1 Function', 4)
+print("Loaded M1.")   
