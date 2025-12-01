@@ -60,5 +60,4 @@ end
 -- 2. Connect the setup function to the CharacterAdded event to handle future spawns (after death)
 player.CharacterAdded:Connect(setupCharacter)
 
-task.wait(4)
-notif:SendNotification("Warning", 'Loaded Dash Function', 4)
+print("Loaded Dash.")   
