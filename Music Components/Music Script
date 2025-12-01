@@ -54,5 +54,4 @@ _G.SetCustomMusic = function(vol, tpos)
     end
 end
 
-task.wait(4)
 notif:SendNotification("Info", 'Loaded Music Function', 4)
