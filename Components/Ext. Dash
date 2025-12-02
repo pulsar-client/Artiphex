@@ -5,9 +5,9 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
 local replacementAnimations = {
-    ["10480796021"] = {Id = "rbxassetid://13498249507", Speed = 1.0},
+    ["10480796021"] = {Id = "rbxassetid://13498249507", Speed = 1.2},
     ["0"] = {Id = "rbxassetid://0", Speed = 1.0}, -- Freeze bug fix applied
-    ["10480793962"] = {Id = "rbxassetid://13498239823", Speed = 1.0}
+    ["10480793962"] = {Id = "rbxassetid://13498239823", Speed = 1.8}
 }
 
 local function setupCharacter(character)
