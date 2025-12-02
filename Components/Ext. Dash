@@ -4,10 +4,10 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 
 local replacementAnimations = {
-    ["LEFT HERE"] = {Id = "rbxassetid://LEFT", Speed = 1.0},
+    ["10480796021"] = {Id = "rbxassetid://13498249507", Speed = 1.0},
     ["10491993682"] = {Id = "rbxassetid://17838619895", Speed = 1.0},
-    ["RIGHT HERE"] = {Id = "rbxassetid://RIGHT", Speed = 1.0},
-    ["Block"] = {Id = "rbxassetid://BLOCK", Speed = 1.0}
+    ["10480793962"] = {Id = "rbxassetid://13498239823", Speed = 1.0},
+    ["0"] = {Id = "rbxassetid://0", Speed = 1.0}
 }
 
 local function onAnimationPlayed(animationTrack)
