@@ -1,1 +1,37 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
 
+local replacementAnimations = {
+    ["LEFT HERE"] = {Id = "rbxassetid://LEFT", Speed = 1.0},
+    ["10491993682"] = {Id = "rbxassetid://17838619895", Speed = 1.0},
+    ["RIGHT HERE"] = {Id = "rbxassetid://RIGHT", Speed = 1.0},
+    ["Block"] = {Id = "rbxassetid://BLOCK", Speed = 1.0}
+}
+
+local function onAnimationPlayed(animationTrack)
+    if player.Character and humanoid then
+        local animationId = animationTrack.Animation.AnimationId:match("%d+")
+        local replacementData = replacementAnimations[animationId]
+
+        if replacementData then
+            animationTrack:Stop()
+
+            local newAnimation = Instance.new("Animation")
+            newAnimation.AnimationId = replacementData.Id
+            local newTrack = humanoid:LoadAnimation(newAnimation)
+            
+            newTrack:Play()
+            newTrack:AdjustSpeed(replacementData.Speed)
+        end
+    end
+end
+
+humanoid.AnimationPlayed:Connect(onAnimationPlayed)
+
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = newCharacter:WaitForChild("Humanoid")
+    humanoid.AnimationPlayed:Connect(onAnimationPlayed)
+end)
