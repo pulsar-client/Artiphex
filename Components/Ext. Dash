@@ -1,40 +1,61 @@
--- Delta Compatible Strict Override
--- Removes buggy animation & ensures custom moves override EVERYTHING.
+-- Delta Compatible Animation Fix
+-- Prevents looping and fixes character freeze bugs.
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
--- Removed the buggy ID. Only keeping the safe ones.
 local replacementAnimations = {
     ["10480796021"] = {Id = "rbxassetid://13498249507", Speed = 1.0},
-    -- ["10491993682"] REMOVED due to bugs
+    ["0"] = {Id = "rbxassetid://0", Speed = 1.0}, -- Freeze bug fix applied
     ["10480793962"] = {Id = "rbxassetid://13498239823", Speed = 1.0}
 }
 
 local function setupCharacter(character)
     local humanoid = character:WaitForChild("Humanoid")
-    local animator = humanoid:WaitForChild("Animator")
-    
-    -- State variable to track if we are currently performing a custom move
-    local isOverriding = false 
+    -- Use Animator for better stability on Delta
+    local animator = humanoid:WaitForChild("Animator") 
 
     local function onAnimationPlayed(animationTrack)
+        -- Safety check
         if not animationTrack.Animation then return end
 
         local animationId = animationTrack.Animation.AnimationId:match("%d+")
         local replacementData = replacementAnimations[animationId]
 
         if replacementData then
-            -- >> CASE 1: It is one of our special animations <<
-            
-            -- 1. Stop the trigger animation
+            -- Stop the original animation immediately
             animationTrack:Stop()
 
-            -- 2. Stop ALL other currently playing animations (Idle, Walk, etc.)
-            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-                track:Stop()
-            end
+            -- Create the new animation
+            local newAnimation = Instance.new("Animation")
+            newAnimation.AnimationId = replacementData.Id
+            
+            -- Load onto the Animator
+            local newTrack = animator:LoadAnimation(newAnimation)
+            
+            -- CRITICAL FIXES:
+            newTrack.Looped = false -- Ensure it runs only once
+            newTrack.Priority = Enum.AnimationPriority.Action -- Ensure it overrides movement but doesn't get stuck
+            
+            newTrack:Play()
+            newTrack:AdjustSpeed(replacementData.Speed)
 
+            -- Cleanup to ensure movement is restored
+            newTrack.Stopped:Connect(function()
+                newTrack:Destroy() -- Removes the track completely when done
+            end)
+        end
+    end
+
+    humanoid.AnimationPlayed:Connect(onAnimationPlayed)
+end
+
+-- Persistent Connection
+player.CharacterAdded:Connect(setupCharacter)
+
+if player.Character then
+    setupCharacter(player.Character)
+endend)
             -- 3. Lock the state so nothing else can play
             isOverriding = true
 
