@@ -3,7 +3,7 @@ The ultimate TSB script, taking the best combat and external features skidded fr
 
 -----------------------------------------------
 
-# Development Status:  67% Complete.
+# Development Status:  75% Complete.
 
 If you would like to see your current plans and progress, then click here: [Our project status.](https://github.com/users/pulsar-client/projects/4)
 
