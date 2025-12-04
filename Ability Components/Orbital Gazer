@@ -1,1 +1,209 @@
 
+-- Persistent Orbital Gazer Ability
+-- Extracted from VOLTA.lua - Teleports around the nearest target for damage.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local player = Players.LocalPlayer
+
+-- // --- CONFIGURATION --- \\ --
+local ABILITY_CONFIG = {
+    Name = "Orbital Gazer",   -- Skill name
+    CooldownLength = 10,      -- Set to 10 seconds cooldown
+    Burning = false,          -- No burning effect for this move
+    DefaultKey = "6"          -- Default hotbar key
+}
+
+-- // --- HELPER FUNCTIONS --- \\ --
+
+-- Function to find the nearest non-player character target (assuming TSB structure)
+local function GetNearestTarget(character, range)
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    
+    local nearest = nil
+    local dist = range or 100
+    
+    -- TSB uses 'workspace.Live' for characters usually
+    local container = workspace:FindFirstChild("Live") or workspace
+    
+    for _, v in pairs(container:GetChildren()) do
+        if v ~= character and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") then
+            local targetHRP = v.HumanoidRootPart
+            local mag = (targetHRP.Position - hrp.Position).Magnitude
+            if mag < dist then
+                dist = mag
+                nearest = v
+            end
+        end
+    end
+    return nearest
+end
+
+
+-- // --- MAIN ABILITY LOGIC (VOLTA Orbital Gazer) --- \\ --
+local function ActivateAbility(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    local hrp = character:WaitForChild("HumanoidRootPart")
+    local target = GetNearestTarget(character, 50)
+    
+    if not target or not target.Parent then return end -- No target found or target despawned
+    
+    local targetHRP = target:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+    
+    local camera = workspace.CurrentCamera
+    local animator = humanoid:FindFirstChild("Animator") or humanoid
+    
+    -- 1. Animation (Orbital Gazer Start)
+    local Anim = Instance.new("Animation")
+    Anim.AnimationId = "rbxassetid://18897115785"
+    local k = animator:LoadAnimation(Anim)
+    k.Priority = Enum.AnimationPriority.Action4
+    k:Play()
+    k:AdjustSpeed(2) -- Faster execution
+    
+    -- 2. Visuals (Fang Flash)
+    local success, vp = pcall(function() 
+        return ReplicatedStorage.Resources.Fang.FLASH:Clone() 
+    end)
+    
+    if success and vp then
+        vp.Parent = workspace
+        vp.flashstep.Anchored = true
+        Debris:AddItem(vp, 5) -- Add cleanup
+        
+        local he = vp.flashstep.Attachment
+        
+        -- Emit particles (Original VOLTA particles)
+        if he:FindFirstChild("wave") then he.wave:Emit(1) end
+        if he:FindFirstChild("black") then he.black:Emit(1) end
+        if he:FindFirstChild("flash") then he.flash:Emit(1) end
+        
+        -- 3. Teleport Sequence
+        camera.CameraSubject = target -- Lock camera to target for cinematic effect
+        
+        -- Custom Particle Trail (Original)
+        local pm = Instance.new("ParticleEmitter")
+        pm.Parent = hrp
+        pm.ZOffset = 0
+        pm.LockedToPart = true
+        pm.Size = NumberSequence.new{
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(.5, 5),
+            NumberSequenceKeypoint.new(1, 2)
+        }
+        pm.Brightness = 0
+        pm.LightEmission = 0
+        pm.Lifetime = NumberRange.new(.1)
+        pm.Rate = 0
+        pm.Texture = "rbxassetid://10184824645"
+        pm.Color = ColorSequence.new(Color3.new(1,0,0)) -- Red trail (Original)
+        Debris:AddItem(pm, 5)
+        
+        local originalCFrame = hrp.CFrame
+        
+        -- Teleport Loop (60 iterations around target)
+        for i = 1, 60 do 
+            if not target.Parent then break end
+            
+            vp.flashstep.CFrame = originalCFrame * CFrame.new(0, -2.5, 0)
+            pm:Emit(1)
+            
+            -- VOLTA's specific orbital math
+            hrp.CFrame = targetHRP.CFrame 
+                * CFrame.new(math.sin(i*-2.5)*25, 0, math.cos(i*-2.5)*25)
+                * CFrame.Angles(0, math.rad(-90) + i*-2.5, 0)
+            
+            RunService.RenderStepped:Wait()
+        end
+        
+        -- 4. Cleanup and Final Position
+        camera.CameraSubject = character -- Restore camera to player
+        k:Stop()
+        pm:Destroy()
+        -- Teleport behind target for final hit/stance
+        hrp.CFrame = targetHRP.CFrame * CFrame.new(0, 0, 5)
+        
+    else
+        warn("Resources.Fang.FLASH not found - Unable to run visual effect.")
+    end
+end
+
+-- // --- SETUP FUNCTION (PERSISTENT TEMPLATE) --- \\ --
+local function SetupAbility(character)
+    local backpack = player:WaitForChild("Backpack")
+    local playerGui = player:WaitForChild("PlayerGui")
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    if backpack:FindFirstChild(ABILITY_CONFIG.Name) then return end
+    
+    local SkillTool = Instance.new("Tool")
+    SkillTool.Name = ABILITY_CONFIG.Name
+    SkillTool.RequiresHandle = false
+    SkillTool.CanBeDropped = false
+    SkillTool.Parent = backpack
+
+    local OnCooldown = false
+    local CurrentKey = ABILITY_CONFIG.DefaultKey
+    local InputConnection = nil
+
+    local function TriggerCooldown()
+        OnCooldown = true
+        
+        -- Cooldown Visuals (Simplified version)
+        task.delay(ABILITY_CONFIG.CooldownLength, function() OnCooldown = false end)
+        
+        local hotbar = playerGui:FindFirstChild("Hotbar", true)
+        if hotbar then
+            for _, slot in pairs(hotbar:GetDescendants()) do
+                if slot:IsA("TextLabel") and slot.Text == ABILITY_CONFIG.Name then
+                    local cd = Instance.new("Frame", slot.Parent) 
+                    cd.Size = UDim2.new(1,0,1,0)
+                    cd.BackgroundColor3 = Color3.fromRGB(150, 0, 0) -- Red cooldown color
+                    cd.BackgroundTransparency = 0.5
+                    TweenService:Create(cd, TweenInfo.new(ABILITY_CONFIG.CooldownLength), {Size = UDim2.new(1,0,0,0)}):Play()
+                    task.delay(ABILITY_CONFIG.CooldownLength, function() cd:Destroy() end)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Hook Tool Activation (Click)
+    SkillTool.Activated:Connect(function()
+        if not OnCooldown and character.Parent then
+            TriggerCooldown()
+            ActivateAbility(character)
+        end
+    end)
+
+    -- Hook Keybinds
+    InputConnection = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        
+        -- Basic Key Mapping (1-5)
+        local KeyMap = {["1"]=Enum.KeyCode.One, ["2"]=Enum.KeyCode.Two, ["3"]=Enum.KeyCode.Three, ["4"]=Enum.KeyCode.Four, ["5"]=Enum.KeyCode.Five}
+        local targetKey = KeyMap[CurrentKey] or Enum.KeyCode[ABILITY_CONFIG.DefaultKey]
+        
+        if input.KeyCode == targetKey and not OnCooldown and character.Parent then
+            TriggerCooldown()
+            ActivateAbility(character)
+        end
+    end)
+
+    -- Cleanup on Death
+    humanoid.Died:Connect(function()
+        if InputConnection then 
+            InputConnection:Disconnect() 
+        end
+    end)
+end
+
+-- // --- INITIALIZATION --- \\ --
+player.CharacterAdded:Connect(SetupAbility)
+if player.Character then SetupAbility(player.Character) end
