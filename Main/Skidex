@@ -1,1 +1,102 @@
-¡Work in progress!
+-- ===========================
+-- CONFIG
+-- ===========================
+local NotificationLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/IceMinisterq/Notification-Library/Main/Library.lua"))()
+local retryCount = 2        -- Number of retries for failed scripts
+local delayBetween = 0.2    -- Delay between scripts (seconds)
+local silentMode = false     -- If true, disables notifications
+
+-- ===========================
+-- UTILITIES
+-- ===========================
+local function sendNotification(type, message, time)
+    if not silentMode then
+        NotificationLibrary:SendNotification(type, message, time)
+    end
+end
+
+local function coloredPrint(text, color)
+    -- Roblox Studio output doesn't support true colors, but using prefixes for clarity
+    print("[" .. color .. "] " .. text)
+end
+
+-- ===========================
+-- SCRIPT LIST
+-- ===========================
+-- Friendly names + URL
+local scripts = {
+    {name="Dash", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Dash"},
+    {name="Core", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Core"},
+    {name="Transformation", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Transformation"},
+    {name="M1", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/M1"},
+    {name="Idle", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Idle"},
+    {name="Dash-Ext", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Dash-Ext"},
+    {name="Downslam", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Downslam"},
+    {name="Buffer", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Buffer"},
+    {name="Music Script", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Music%20Components/Music%20Script"},
+}
+
+-- ===========================
+-- TRACKERS
+-- ===========================
+local successList = {}
+local failedList = {}
+local totalStartTime = tick()
+
+-- ===========================
+-- LOADING FUNCTION
+-- ===========================
+local function loadScript(script, attempt)
+    attempt = attempt or 1
+    local scriptStartTime = tick()
+    coloredPrint("[" .. os.date("%X") .. "] Loading script ("..attempt.."): " .. script.name, "Info")
+    
+    local success, result = pcall(function()
+        local src = game:HttpGet(script.url, true)
+        local fn = loadstring(src)
+        return fn()
+    end)
+    
+    local loadTime = string.format("%.2f", tick() - scriptStartTime)
+
+    if success then
+        coloredPrint("[✔] Loaded successfully in " .. loadTime .. "s: " .. script.name, "Success")
+        sendNotification("Success", "Loaded: " .. script.name .. " (" .. loadTime .. "s)", 3)
+        table.insert(successList, {name=script.name, time=loadTime})
+    else
+        coloredPrint("[✘] Failed to load: " .. script.name .. " | Error: " .. result, "Error")
+        sendNotification("Error", "Failed: " .. script.name, 3)
+        if attempt <= retryCount then
+            coloredPrint("Retrying script ("..(attempt+1).."): " .. script.name, "Warning")
+            sendNotification("Warning", "Retrying: " .. script.name .. " (Attempt "..(attempt+1)..")", 3)
+            wait(0.5)
+            return loadScript(script, attempt + 1)
+        else
+            table.insert(failedList, {name=script.name, error=result})
+        end
+    end
+end
+
+-- ===========================
+-- MAIN LOOP
+-- ===========================
+for index, script in ipairs(scripts) do
+    coloredPrint(string.format("Loading script %d/%d", index, #scripts), "Info")
+    loadScript(script)
+    wait(delayBetween)
+end
+
+-- ===========================
+-- SUMMARY
+-- ===========================
+local totalTime = string.format("%.2f", tick() - totalStartTime)
+local summaryMessage = string.format("Scripts loaded: %d | Failed: %d | Total time: %ss", #successList, #failedList, totalTime)
+sendNotification("Info", "Script loading complete! " .. summaryMessage, 5)
+
+coloredPrint("=== SCRIPT LOADING SUMMARY ===", "Info")
+for _, s in ipairs(successList) do
+    coloredPrint("[✔] Loaded: " .. s.name .. " | Time: " .. s.time .. "s", "Success")
+end
+for _, f in ipairs(failedList) do
+    coloredPrint("[✘] Failed: " .. f.name .. " | Error: " .. f.error, "Error")
+end
