@@ -1,40 +1,156 @@
+-------------------------------
+-- ORBITAL GAZER (EXTRACTED) --
+-------------------------------
 
--- Persistent Orbital Gazer Ability
--- Extracted from VOLTA.lua - Teleports around the nearest target for damage.
+local SkillName = "Orbital Gazer"
+local CooldownLengh = 4
+local Burning = false -- not used, leave as-is
 
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Debris = game:GetService("Debris")
-local player = Players.LocalPlayer
+-- == ORBITAL GAZER CODE ==
+local function OrbitalGazer()
+    local lp = game.Players.LocalPlayer
+    local char = lp.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
--- // --- CONFIGURATION --- \\ --
-local ABILITY_CONFIG = {
-    Name = "Orbital Gazer",   -- Skill name
-    CooldownLength = 10,      -- Set to 10 seconds cooldown
-    Burning = false,          -- No burning effect for this move
-    DefaultKey = "6"          -- Default hotbar key
+    task.spawn(function()
+        local gothit = false
+        for _,v in pairs(workspace.Live:GetChildren()) do 
+            local tor = v:FindFirstChild("Torso")
+            local hum = v:FindFirstChildOfClass("Humanoid")
+            if tor and hum and v ~= char then
+                if (tor.Position - hrp.Position).Magnitude <= 33 then
+                    if gothit then return end
+                    gothit = true
+                    task.delay(5, function() gothit = false end)
+
+                    workspace.CurrentCamera.CameraSubject = v
+
+                    -- Animation 1
+                    local Anim = Instance.new("Animation")
+                    Anim.AnimationId = "rbxassetid://18897115785"
+                    local k = char.Humanoid:LoadAnimation(Anim)
+                    k.Priority = Enum.AnimationPriority.Action4
+                    k:Play()
+                    k:AdjustSpeed(2)
+
+                    -- Flash effect
+                    local vp = game.ReplicatedStorage.Resources.Fang.FLASH:Clone()
+                    vp.Parent = workspace
+                    vp.flashstep.Anchored = true
+                    vp.flashstep.Attachment.black:Emit(1)
+                    vp.flashstep.Attachment.flash:Emit(1)
+
+                    -- Orbit
+                    local pm = Instance.new("ParticleEmitter")
+                    pm.Parent = hrp
+                    pm.Texture = "rbxassetid://10184824645"
+                    pm.Lifetime = NumberRange.new(0.1)
+                    pm.Rate = 0
+                    pm.LockedToPart = true
+
+                    for i = 1,150 do
+                        if char:FindFirstChild("Freeze") or char:FindFirstChild("Slowed") or char:FindFirstChild("AntiMove") then break end
+
+                        vp.flashstep.CFrame = hrp.CFrame * CFrame.new(0, -2.5, 0)
+                        vp.flashstep.Attachment.black:Emit(1)
+                        vp.flashstep.Attachment.flash:Emit(1)
+                        pm:Emit(1)
+
+                        hrp.CFrame = v.HumanoidRootPart.CFrame
+                            * CFrame.new(math.sin(i * -2.5) * 25, 0, math.cos(i * -2.5) * 25)
+                            * CFrame.Angles(0, math.rad(-90) + i * -2.5, 0)
+
+                        task.wait()
+                    end
+
+                    workspace.CurrentCamera.CameraSubject = char
+                    k:Stop()
+                    pm:Destroy()
+                    hrp.CFrame = v.HumanoidRootPart.CFrame * CFrame.new(0, 0, 5)
+                end
+            end
+        end
+    end)
+end
+
+-- ==========================================
+-- CONNECT ORBITAL GAZER TO TEMPLATE SYSTEM
+-- ==========================================
+
+local Activated = function()
+    OrbitalGazer()
+end
+
+-- == THE TEMPLATE CODE ITSELF ==
+local SkillTemplate = Instance.new("Tool")
+SkillTemplate.Name = SkillName
+SkillTemplate.RequiresHandle = false
+SkillTemplate.ManualActivationOnly = false
+SkillTemplate.CanBeDropped = false
+SkillTemplate:SetAttribute("Regged", false)
+SkillTemplate:SetAttribute("Skill", true)
+SkillTemplate.Parent = game.Players.LocalPlayer.Backpack
+
+local ks = "5"
+local OnCooldown = false
+
+local function cooldownFunction()
+    OnCooldown = true
+    local cd = game.Players.LocalPlayer.PlayerGui.Hotbar.Backpack.LocalScript.Cooldown:Clone()
+
+    for _, slot in pairs(game.Players.LocalPlayer.PlayerGui.Hotbar.Backpack.Hotbar:GetDescendants()) do
+        if slot:IsA("TextLabel") and slot.Name == "ToolName" and slot.Text == SkillName then
+            ks = slot.Parent.Parent.Name
+            cd.Parent = slot.Parent
+
+            local tween = game.TweenService:Create(cd, TweenInfo.new(CooldownLengh), {Size = UDim2.new(1,0,-0.12,0)})
+            tween:Play()
+            tween.Completed:Connect(function()
+                OnCooldown = false
+                cd:Destroy()
+            end)
+        end
+    end
+end
+
+-- UI clicking support
+for _, slot in pairs(game.Players.LocalPlayer.PlayerGui.Hotbar.Backpack.Hotbar:GetDescendants()) do
+    if slot:IsA("TextLabel") and slot.Name == "ToolName" and slot.Text == SkillName then
+        slot.Parent.MouseButton1Click:Connect(function()
+            if not OnCooldown then
+                cooldownFunction()
+                Activated()
+            end
+        end)
+    end
+end
+
+-- Keyboard activation
+local KeyMap = {
+    ["1"] = Enum.KeyCode.One, ["2"] = Enum.KeyCode.Two, ["3"] = Enum.KeyCode.Three,
+    ["4"] = Enum.KeyCode.Four,["5"] = Enum.KeyCode.Five,["6"] = Enum.KeyCode.Six,
+    ["7"] = Enum.KeyCode.Seven,["8"] = Enum.KeyCode.Eight,["9"] = Enum.KeyCode.Nine,
+    ["0"] = Enum.KeyCode.Zero
 }
 
--- // --- HELPER FUNCTIONS --- \\ --
+local uis = game:GetService("UserInputService")
+local kb = KeyMap[ks]
 
--- Function to find the nearest non-player character target (assuming TSB structure)
-local function GetNearestTarget(character, range)
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    
-    local nearest = nil
-    local dist = range or 100
-    
-    -- TSB uses 'workspace.Live' for characters usually
-    local container = workspace:FindFirstChild("Live") or workspace
-    
-    for _, v in pairs(container:GetChildren()) do
-        if v ~= character and v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") then
-            local targetHRP = v.HumanoidRootPart
-            local mag = (targetHRP.Position - hrp.Position).Magnitude
+local inputConn = uis.InputBegan:Connect(function(input)
+    if input.KeyCode == kb then
+        if not OnCooldown then
+            cooldownFunction()
+            Activated()
+        end
+    end
+end)
+
+-- RE-SPAWN FIX: Recreate skill after death
+game.Players.LocalPlayer.Character.Humanoid.Died:Connect(function()
+    task.wait(0.5)
+    SkillTemplate.Parent = game.Players.LocalPlayer.Backpack
+end)            local mag = (targetHRP.Position - hrp.Position).Magnitude
             if mag < dist then
                 dist = mag
                 nearest = v
