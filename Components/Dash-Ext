@@ -4,8 +4,8 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 
 local replacementAnimations = {
-    ["10480796021"] = {Id = "rbxassetid://13498249507", Speed = 1.7},
-    ["10480793962"] = {Id = "rbxassetid://13498239823", Speed = 1.7},
+    ["10480796021"] = {Id = "rbxassetid://13498249507", Speed = 1.6},
+    ["10480793962"] = {Id = "rbxassetid://13498239823", Speed = 1.6},
 }
 
 local function onAnimationPlayed(animationTrack)
@@ -38,64 +38,4 @@ player.CharacterAdded:Connect(function(newCharacter)
     character = newCharacter
     humanoid = newCharacter:WaitForChild("Humanoid")
     humanoid.AnimationPlayed:Connect(onAnimationPlayed)
-end)            newTrack.Looped = false -- Ensure it runs only once
-            newTrack.Priority = Enum.AnimationPriority.Action -- Ensure it overrides movement but doesn't get stuck
-            
-            newTrack:Play()
-            newTrack:AdjustSpeed(replacementData.Speed)
-
-            -- Cleanup to ensure movement is restored
-            newTrack.Stopped:Connect(function()
-                newTrack:Destroy() -- Removes the track completely when done
-            end)
-        end
-    end
-
-    humanoid.AnimationPlayed:Connect(onAnimationPlayed)
-end
-
--- Persistent Connection
-player.CharacterAdded:Connect(setupCharacter)
-
-if player.Character then
-    setupCharacter(player.Character)
-endend)
-            -- 3. Lock the state so nothing else can play
-            isOverriding = true
-
-            -- 4. Play the custom animation
-            local newAnimation = Instance.new("Animation")
-            newAnimation.AnimationId = replacementData.Id
-            
-            local newTrack = animator:LoadAnimation(newAnimation)
-            newTrack.Looped = false -- Crucial: Prevents infinite looping
-            newTrack.Priority = Enum.AnimationPriority.Action4 -- Highest Priority to visually override everything
-            
-            newTrack:Play()
-            newTrack:AdjustSpeed(replacementData.Speed)
-
-            -- 5. Unlock the state when finished
-            newTrack.Stopped:Connect(function()
-                isOverriding = false
-                newTrack:Destroy()
-            end)
-
-        else
-            -- >> CASE 2: It is a normal game animation (Walk, Jump, Tool, etc.) <<
-            
-            -- If we are currently doing a custom move, BLOCK this new animation.
-            if isOverriding then
-                animationTrack:Stop()
-            end
-        end
-    end
-
-    humanoid.AnimationPlayed:Connect(onAnimationPlayed)
-end
-
--- Persistent Connection
-player.CharacterAdded:Connect(setupCharacter)
-
-if player.Character then
-    setupCharacter(player.Character)
-end
+end)
