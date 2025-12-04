@@ -1,0 +1,132 @@
+-- // CONFIGURATION // --
+local MOVE_GOAL = "Console Move"
+local SPAM_CONNECTION = nil -- We will store our connection here
+local HELD_UI_TEXT = "HELD"
+
+-- // SERVICE & PLAYER SETUP // --
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- Fixes the KeyCode issue without the rage-filled table name
+local KEYCODE_MAP = {
+    [1] = Enum.KeyCode.One,
+    [2] = Enum.KeyCode.Two,
+    [3] = Enum.KeyCode.Three,
+    [4] = Enum.KeyCode.Four,
+}
+
+-- Table to track input status and UI buttons
+local moves = {}
+for i = 1, 4 do
+    local button = LocalPlayer.PlayerGui.Hotbar.Backpack.Hotbar[tostring(i)].Base
+    moves[i] = {holdingKey = false, holdingMouse = false, button = button, oldState = nil}
+end
+
+--- Toggles the aggressive RenderStepped loop ON or OFF.
+local function SpamMoveToggle(enable)
+    if enable and not SPAM_CONNECTION then
+        -- START SPAMMING
+        SPAM_CONNECTION = RunService.RenderStepped:Connect(function()
+            local Character = LocalPlayer.Character
+            if not Character then return end
+            
+            local Backpack = LocalPlayer.Backpack
+            local Communicate = Character:FindFirstChild("Communicate")
+            if not Backpack or not Communicate then return end
+            
+            for i, move in pairs(moves) do
+                local btn = move.button
+                local toolName = btn.ToolName.Text
+
+                -- Store original UI state once
+                if not move.oldState then
+                    move.oldState = {Visible = btn.Reuse.Visible, Text = btn.Reuse.Text}
+                end
+
+                if move.holdingKey or move.holdingMouse then
+                    -- Visual update
+                    btn.Reuse.Visible = true
+                    btn.Reuse.Reuse.Visible = true
+                    btn.Reuse.Text = HELD_UI_TEXT
+                    btn.Reuse.Reuse.Text = HELD_UI_TEXT
+                    
+                    -- Fire the remote event aggressively
+                    local args = {
+                        [1] = {
+                            ["Goal"] = MOVE_GOAL,
+                            ["Tool"] = Backpack:FindFirstChild(toolName)
+                        }
+                    }
+                    Communicate:FireServer(unpack(args))
+                else
+                    -- Restore original UI state
+                    if move.oldState then
+                        btn.Reuse.Text = move.oldState.Text
+                        btn.Reuse.Reuse.Text = move.oldState.Text
+                        btn.Reuse.Visible = move.oldState.Visible
+                    end
+                end
+            end
+        end)
+    elseif not enable and SPAM_CONNECTION then
+        -- STOP SPAMMING
+        SPAM_CONNECTION:Disconnect()
+        SPAM_CONNECTION = nil
+    end
+end
+
+-- // INPUT SETUP // --
+
+-- Set up keyboard and mouse listeners only ONCE
+for i, move in pairs(moves) do
+    local key = KEYCODE_MAP[i]
+    local button = move.button
+    
+    -- Keyboard Input
+    UserInputService.InputBegan:Connect(function(input)
+        if UserInputService:GetFocusedTextBox() then return end
+        if input.KeyCode == key then
+            move.holdingKey = true
+            SpamMoveToggle(true) -- Start spamming when a key is pressed
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == key then
+            move.holdingKey = false
+            -- Check if ALL keys/mouse are released before stopping the spam
+            local shouldStop = true
+            for _, m in pairs(moves) do
+                if m.holdingKey or m.holdingMouse then
+                    shouldStop = false
+                    break
+                end
+            end
+            if shouldStop then SpamMoveToggle(false) end
+        end
+    end)
+
+    -- Mouse Button Input on the UI element
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            move.holdingMouse = true
+            SpamMoveToggle(true) -- Start spamming when mouse is held
+        end
+    end)
+    button.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            move.holdingMouse = false
+            -- Check if ALL keys/mouse are released before stopping the spam
+            local shouldStop = true
+            for _, m in pairs(moves) do
+                if m.holdingKey or m.holdingMouse then
+                    shouldStop = false
+                    break
+                end
+            end
+            if shouldStop then SpamMoveToggle(false) end
+        end
+    end)
+end
