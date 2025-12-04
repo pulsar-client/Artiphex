@@ -1,1 +1,208 @@
 
+-- Persistent Dodge Ability (Recolored Black & White)
+-- Backward evasion with transparency effects.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+local player = Players.LocalPlayer
+
+-- // --- CONFIGURATION --- \\ --
+local ABILITY_CONFIG = {
+    Name = "Dodge",
+    CooldownLength = 3,
+    Burning = false,
+    DefaultKey = "5"
+}
+
+-- // --- HELPER: BLACK & WHITE RECOLOR --- \\ --
+local function MakeMonochrome(effectInstance)
+    if not effectInstance then return end
+    
+    -- Handle Particle Emitters
+    for _, v in pairs(effectInstance:GetDescendants()) do
+        if v:IsA("ParticleEmitter") then
+            v.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0.00, Color3.new(0,0,0)), -- Start Black
+                ColorSequenceKeypoint.new(0.50, Color3.new(0.5,0.5,0.5)), -- Grey Mid
+                ColorSequenceKeypoint.new(1.00, Color3.new(1,1,1))  -- End White
+            }
+        elseif v:IsA("Light") then
+            v.Color = Color3.new(1,1,1) -- White Light
+        end
+    end
+end
+
+-- // --- MAIN ABILITY LOGIC --- \\ --
+local function ActivateAbility(character)
+    local humanoid = character:WaitForChild("Humanoid")
+    local hrp = character:WaitForChild("HumanoidRootPart")
+    local animator = humanoid:FindFirstChild("Animator") or humanoid
+    
+    -- 1. Stop Movement temporarily
+    local oldVel = hrp.Velocity
+    hrp.Velocity = Vector3.new(0,0,0)
+    
+    -- 2. Visuals (Tornado/Smoke Effect)
+    local success, v = pcall(function() 
+        return ReplicatedStorage.Resources.TerribleTornado.Combine.Combine:Clone() 
+    end)
+    
+    if success and v then
+        v.Parent = workspace
+        Debris:AddItem(v, 2)
+        
+        if v:FindFirstChild("particles") then v.particles:Destroy() end -- Remove default particles
+        
+        local att = v:FindFirstChild("Attachment")
+        if att and att:FindFirstChild("smokeflashy") then
+            local pm = att.smokeflashy
+            pm.Enabled = true
+            
+            -- RECOLOR: Black & White
+            pm.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0.00, Color3.new(0,0,0)), 
+                ColorSequenceKeypoint.new(1.00, Color3.new(1,1,1))
+            }
+            
+            pm:Emit(1)
+            
+            -- Spawn monochrome smoke particles around player
+            task.spawn(function()
+                v.CFrame = hrp.CFrame
+                for i = 1, 30 do
+                    pm:Emit(1)
+                    v.CFrame = hrp.CFrame * CFrame.new(math.random(-2,2), math.random(-2,2), -3+math.random(-2,2))
+                    task.wait()
+                end
+            end)
+        end
+    end
+    
+    -- 3. Transparency (Ghost Effect)
+    task.spawn(function()
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") or part:IsA("Decal") then
+                if part.Name ~= "HumanoidRootPart" then
+                    local oldTrans = part.Transparency
+                    part.Transparency = 1
+                    task.delay(0.8, function() part.Transparency = oldTrans end)
+                end
+            end
+        end
+    end)
+
+    -- 4. Animation & Backward Dash
+    local Anim = Instance.new("Animation")
+    Anim.AnimationId = "rbxassetid://16062712948" -- Morphose Start
+    local k = animator:LoadAnimation(Anim)
+    k.Priority = Enum.AnimationPriority.Action4
+    k:Play()
+    k:AdjustSpeed(2) -- Faster dodge
+    
+    local originalCFrame = hrp.CFrame
+    
+    -- Teleport Backwards
+    task.wait(0.2)
+    hrp.CFrame = originalCFrame * CFrame.new(0, 0, 25) -- 25 studs back
+    
+    -- 5. End Animation
+    task.wait(0.2)
+    k:Stop()
+    
+    local AnimEnd = Instance.new("Animation")
+    AnimEnd.AnimationId = "rbxassetid://15957361339" -- Morphose End
+    local k2 = animator:LoadAnimation(AnimEnd)
+    k2.Priority = Enum.AnimationPriority.Action2
+    k2:Play()
+    k2:AdjustSpeed(3)
+    
+    -- 6. Funeral Effect (Monochrome)
+    local success2, fe = pcall(function()
+        return ReplicatedStorage.Resources.FuneralEffect:Clone()
+    end)
+    
+    if success2 and fe then
+        for i = 1, 10 do
+            local v = fe:Clone()
+            v.Parent = workspace
+            Debris:AddItem(v, 1)
+            MakeMonochrome(v) -- Apply BW filter
+            
+            local flash = v.Center.Flash
+            v.Anchored = true
+            v.CFrame = originalCFrame * CFrame.new(math.random(-3,3), 0, -i*3)
+            flash:Emit(1)
+            task.wait()
+        end
+    end
+end
+
+-- // --- SETUP FUNCTION --- \\ --
+local function SetupAbility(character)
+    local backpack = player:WaitForChild("Backpack")
+    local playerGui = player:WaitForChild("PlayerGui")
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    if backpack:FindFirstChild(ABILITY_CONFIG.Name) then return end
+    
+    local SkillTool = Instance.new("Tool")
+    SkillTool.Name = ABILITY_CONFIG.Name
+    SkillTool.RequiresHandle = false
+    SkillTool.CanBeDropped = false
+    SkillTool.Parent = backpack
+
+    local OnCooldown = false
+    local CurrentKey = ABILITY_CONFIG.DefaultKey
+    local InputConnection = nil
+
+    local function TriggerCooldown()
+        OnCooldown = true
+        task.delay(ABILITY_CONFIG.CooldownLength, function() OnCooldown = false end)
+        
+        -- Fallback Visual Cooldown
+        local hotbar = playerGui:FindFirstChild("Hotbar", true)
+        if hotbar then
+            for _, slot in pairs(hotbar:GetDescendants()) do
+                if slot:IsA("TextLabel") and slot.Text == ABILITY_CONFIG.Name then
+                    local cd = Instance.new("Frame", slot.Parent)
+                    cd.Size = UDim2.new(1,0,1,0)
+                    cd.BackgroundColor3 = Color3.new(1,1,1) -- White for dodge
+                    cd.BackgroundTransparency = 0.5
+                    TweenService:Create(cd, TweenInfo.new(ABILITY_CONFIG.CooldownLength), {Size = UDim2.new(1,0,0,0)}):Play()
+                    task.delay(ABILITY_CONFIG.CooldownLength, function() cd:Destroy() end)
+                    break
+                end
+            end
+        end
+    end
+
+    -- Hook Tool Activation
+    SkillTool.Activated:Connect(function()
+        if not OnCooldown then
+            TriggerCooldown()
+            ActivateAbility(character)
+        end
+    end)
+
+    -- Hook Keybinds
+    InputConnection = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        local KeyMap = {["1"]=Enum.KeyCode.One, ["2"]=Enum.KeyCode.Two, ["3"]=Enum.KeyCode.Three, ["4"]=Enum.KeyCode.Four, ["5"]=Enum.KeyCode.Five}
+        local targetKey = KeyMap[CurrentKey] or Enum.KeyCode[ABILITY_CONFIG.DefaultKey]
+        
+        if input.KeyCode == targetKey and not OnCooldown then
+            TriggerCooldown()
+            ActivateAbility(character)
+        end
+    end)
+
+    humanoid.Died:Connect(function()
+        if InputConnection then InputConnection:Disconnect() end
+    end)
+end
+
+player.CharacterAdded:Connect(SetupAbility)
+if player.Character then SetupAbility(player.Character) end
