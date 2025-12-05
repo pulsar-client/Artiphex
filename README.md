@@ -3,10 +3,18 @@ The ultimate TSB script, taking the best combat and external features skidded fr
 
 -----------------------------------------------
 
-# Development Status:  75% Complete.
+# Development Status:  100% Complete.
 
 If you would like to see your current plans and progress, then click here: [Our project status.](https://github.com/users/pulsar-client/projects/4)
 
 -----------------------------------------------
 
-# Credits: Soon
+# Note: Even though this script is completed it will still get updated!
+
+-----------------------------------------------
+
+# Credits: 
+1) Reap. ( i copied everything 💔💔 )
+2) Phantasm. ( omgmgmgm wow idk why i added it )
+3) Chatgpt and Gemini ( best coders wow!! )
+4) The other people i stole from 🥶
