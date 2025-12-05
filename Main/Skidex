@@ -1,27 +1,35 @@
--- ===========================
+-- ============================================================
 -- CONFIG
--- ===========================
-local NotificationLibrary = loadstring(game:HttpGet("https://raw.githubusercontent.com/IceMinisterq/Notification-Library/Main/Library.lua"))()
-local retryCount = 2
-local delayBetween = 0.2
-local silentMode = false
+-- ============================================================
+local NotificationLibrary = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/IceMinisterq/Notification-Library/Main/Library.lua"
+))()
 
--- ===========================
+local retryCount = 2          -- retries per script
+local delayBetween = 0.15     -- delay between scripts
+local silentMode = false      -- notification toggle
+
+-- ============================================================
 -- UTILITIES
--- ===========================
+-- ============================================================
 local function sendNotification(type, message, time)
     if not silentMode then
         NotificationLibrary:SendNotification(type, message, time)
     end
 end
 
-local function coloredPrint(text, color)
-    print("[" .. color .. "] " .. text)
+local function coloredPrint(msg, tag)
+    print("[" .. tag .. "] " .. msg)
 end
 
--- ===========================
+-- Faster wrapper to reduce overhead
+local function fastHttp(url)
+    return game:HttpGet(url, true)
+end
+
+-- ============================================================
 -- SCRIPT LIST
--- ===========================
+-- ============================================================
 local scripts = {
     {name="Dash", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Dash"},
     {name="Core", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Core"},
@@ -32,47 +40,87 @@ local scripts = {
     {name="Downslam", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Downslam"},
     {name="Buffer", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Buffer"},
     {name="Music Script", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Music%20Components/Music%20Script"},
-
+    {name="Phantasm", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Phantasm/Script"},
 }
 
--- ===========================
+-- ============================================================
 -- TRACKERS
--- ===========================
+-- ============================================================
 local successList = {}
 local failedList = {}
-local totalStartTime = tick()
+local totalStart = tick()
 
--- ===========================
--- LOADING FUNCTION
--- ===========================
-local function loadScript(script, attempt)
-    attempt = attempt or 1
-    local scriptStartTime = tick()
+-- ============================================================
+-- SCRIPT LOADER (ITERATIVE + OPTIMIZED)
+-- ============================================================
+local function loadScript(scriptData)
+    for attempt = 1, retryCount + 1 do
+        local startTick = tick()
+        local tag = string.format("%s (Attempt %d)", scriptData.name, attempt)
+        
+        coloredPrint("Loading: " .. tag, "Info")
 
-    coloredPrint("[" .. os.date("%X") .. "] Loading script ("..attempt.."): " .. script.name, "Info")
+        local success, result = pcall(function()
+            local content = fastHttp(scriptData.url)
+            local fn = loadstring(content)
 
-    local success, result = pcall(function()
-        local src = game:HttpGet(script.url, true)
-        local fn = loadstring(src)
+            if not fn then
+                error("loadstring failed (syntax error?)")
+            end
 
-        if not fn then
-            error("Loadstring returned nil (invalid Lua syntax?)")
+            return fn()
+        end)
+
+        local loadTime = string.format("%.2f", tick() - startTick)
+
+        -- success
+        if success then
+            table.insert(successList, {name = scriptData.name, time = loadTime})
+            coloredPrint("Loaded " .. scriptData.name .. " in " .. loadTime .. "s", "Success")
+            sendNotification("Success", "Loaded: " .. scriptData.name .. " (" .. loadTime .. "s)", 3)
+            return
         end
 
-        return fn()
-    end)
+        -- failure
+        coloredPrint("Error loading " .. scriptData.name .. ": " .. tostring(result), "Error")
 
-    local loadTime = string.format("%.2f", tick() - scriptStartTime)
-
-    if success then
-        coloredPrint("[✔] Loaded successfully in " .. loadTime .. "s: " .. script.name, "Success")
-        sendNotification("Success", "Loaded: " .. script.name .. " (" .. loadTime .. "s)", 3)
-        table.insert(successList, {name = script.name, time = loadTime})
-        return
+        if attempt <= retryCount then
+            coloredPrint("Retrying " .. scriptData.name, "Warning")
+            sendNotification("Warning", "Retrying: " .. scriptData.name, 2)
+            task.wait(0.35)
+        else
+            table.insert(failedList, {name = scriptData.name, error = result})
+        end
     end
+end
 
-    -- Failed
-    coloredPrint("[✘] Failed to load: " .. script.name .. " | Error: " .. tostring(result), "Error")
+-- ============================================================
+-- MAIN LOOP
+-- ============================================================
+for i, scriptData in ipairs(scripts) do
+    coloredPrint(string.format("(%d/%d) %s", i, #scripts, scriptData.name), "Info")
+    loadScript(scriptData)
+    task.wait(delayBetween)
+end
+
+-- ============================================================
+-- SUMMARY
+-- ============================================================
+local totalTime = string.format("%.2f", tick() - totalStart)
+sendNotification("Info",
+    string.format("Loading complete! Success: %d | Failed: %d | Time: %ss",
+    #successList, #failedList, totalTime), 6
+)
+
+coloredPrint("=== SUMMARY ===", "Info")
+
+for _, s in ipairs(successList) do
+    coloredPrint(string.format("[✔] %s | %ss", s.name, s.time), "Success")
+end
+
+for _, f in ipairs(failedList) do
+    coloredPrint(string.format("[✘] %s | Error: %s", f.name, tostring(f.error)), "Error")
+end    coloredPrint("[✘] Failed to load: " .. script.name .. " | Error: " .. tostring(result), "Error")
     sendNotification("Error", "Failed: " .. script.name, 3)
 
     if attempt < retryCount then
