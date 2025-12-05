@@ -61,4 +61,3 @@ player.CharacterAdded:Connect(function(newCharacter)
     humanoid.AnimationPlayed:Connect(onAnimationPlayed)
 end)
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ATrainz/Phantasm/refs/heads/main/Games/TSB.lua"))()
