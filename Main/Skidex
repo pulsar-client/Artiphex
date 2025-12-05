@@ -32,7 +32,7 @@ local scripts = {
     {name="Downslam", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Downslam"},
     {name="Buffer", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Buffer"},
     {name="Music Script", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Music%20Components/Music%20Script"},
-    {name="Phantasm", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Phantasm/Phantasm"},
+
 }
 
 -- ===========================
