@@ -31,8 +31,9 @@ end
 -- SCRIPT LIST
 -- ============================================================
 local scripts = {
+    {name="Phantasm", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Phantasm/Script"},
     {name="Dash", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Dash"},
-    {name="Core", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Core"},
+    {name="Core", url="https://github.com/pulsar-client/Skidex/blob/main/Components/Repeater"},
     {name="Transformation", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Transformation"},
     {name="M1", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/M1"},
     {name="Idle", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Idle"},
@@ -40,7 +41,6 @@ local scripts = {
     {name="Downslam", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Components/Downslam"},
     {name="Buffer", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Buffer"},
     {name="Music Script", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/Music%20Components/Music%20Script"},
-    {name="Phantasm", url="https://raw.githubusercontent.com/pulsar-client/Skidex/refs/heads/main/External/Phantasm/Script"},
 }
 
 -- ============================================================
