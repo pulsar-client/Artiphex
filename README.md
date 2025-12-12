@@ -7,7 +7,7 @@ If you would like to see our current plans and progress, then click here: [Our p
 
 -----------------------------------------------
 
-# Note: This script has been completely discontinued due to how terrible it is.
+# Note: This script has been completely discontinued due to how terrible it is. (This script is also unfinished btw)
 
 -----------------------------------------------
 
